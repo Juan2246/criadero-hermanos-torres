@@ -2,6 +2,10 @@ const App = (() => {
   const content = () => document.getElementById("app-content");
   const state = { filtro: "vivo", busqueda: "", vista: "cuadricula" };
   let camadaFilas = [];
+  // Padre, madre y fecha de la camada sobreviven al re-render que hace
+  // «+ Agregar cría» / «×» (antes se borraban al tocar esos botones).
+  const cabeceraVacia = () => ({ padreId: "", madreId: "", fecha: "" });
+  let camadaCabecera = cabeceraVacia();
   let fotoPendiente = null;
   let importPendiente = null;
   let pickerRegistry = {};
@@ -689,8 +693,12 @@ const App = (() => {
 
     registrarPicker("f-padre", candidatosPadre, { allowNone: true, placeholder: "— Origen desconocido —", titulo: "Elegir padre" });
     registrarPicker("f-madre", candidatosMadre, { allowNone: true, placeholder: "— Origen desconocido —", titulo: "Elegir madre" });
-    const padreActual = e.padreId ? candidatosPadre.find((c) => c.id === e.padreId) : null;
-    const madreActual = e.madreId ? candidatosMadre.find((c) => c.id === e.madreId) : null;
+    // Si el padre/madre ya registrado dejó de ser "candidato" (p. ej. se le
+    // corrigió el sexo), se sigue mostrando: antes el campo quedaba vacío y
+    // al guardar se borraba el vínculo sin avisar.
+    const buscar = (lista, pid) => (pid ? lista.find((c) => c.id === pid) || all.find((c) => c.id === pid) || null : null);
+    const padreActual = buscar(candidatosPadre, e.padreId);
+    const madreActual = buscar(candidatosMadre, e.madreId);
 
     renderShell(`
       <div class="screen">
@@ -789,6 +797,7 @@ const App = (() => {
     e.cresta = document.getElementById("f-cresta").value.trim();
     e.padreId = document.getElementById("f-padre").value || null;
     e.madreId = document.getElementById("f-madre").value || null;
+    if (e.padreId && e.padreId === e.madreId) { toast("El padre y la madre no pueden ser el mismo ejemplar"); return; }
     e.notas = document.getElementById("f-notas").value.trim();
     if (!e.estado) e.estado = "vivo";
     if (!e.fotos) e.fotos = [];
@@ -834,6 +843,8 @@ const App = (() => {
     const madres = all.filter((c) => c.sexo !== "M");
     registrarPicker("c-padre", padres, { allowNone: true, placeholder: "Seleccionar", titulo: "Elegir padre" });
     registrarPicker("c-madre", madres, { allowNone: true, placeholder: "Seleccionar", titulo: "Elegir madre" });
+    const padreSel = padres.find((c) => c.id === camadaCabecera.padreId) || null;
+    const madreSel = madres.find((c) => c.id === camadaCabecera.madreId) || null;
 
     renderShell(`
       <div class="screen">
@@ -842,16 +853,16 @@ const App = (() => {
           <div class="field-row">
             <div class="field">
               <label>Padre *</label>
-              ${pickerFieldHtml("c-padre", null, "Seleccionar")}
+              ${pickerFieldHtml("c-padre", padreSel, "Seleccionar")}
             </div>
             <div class="field">
               <label>Madre *</label>
-              ${pickerFieldHtml("c-madre", null, "Seleccionar")}
+              ${pickerFieldHtml("c-madre", madreSel, "Seleccionar")}
             </div>
           </div>
           <div class="field">
             <label>Fecha de nacimiento de la camada *</label>
-            <input type="date" id="c-fecha" max="${hoyLocal()}">
+            <input type="date" id="c-fecha" max="${hoyLocal()}" value="${esc(camadaCabecera.fecha)}">
           </div>
         </div>
         <div class="card">
@@ -874,6 +885,8 @@ const App = (() => {
   }
 
   function sincronizarFilasDesdeDOM() {
+    const valor = (id) => { const el = document.getElementById(id); return el ? el.value : ""; };
+    camadaCabecera = { padreId: valor("c-padre"), madreId: valor("c-madre"), fecha: valor("c-fecha") };
     document.querySelectorAll(".cria-placa").forEach((inp) => { camadaFilas[+inp.dataset.idx].placa = inp.value.trim(); });
     document.querySelectorAll(".cria-colorplaca").forEach((inp) => { camadaFilas[+inp.dataset.idx].colorPlaca = inp.value.trim(); });
     document.querySelectorAll(".cria-color").forEach((inp) => { camadaFilas[+inp.dataset.idx].color = inp.value.trim(); });
@@ -898,6 +911,7 @@ const App = (() => {
     const madreId = document.getElementById("c-madre").value;
     const fecha = document.getElementById("c-fecha").value;
     if (!padreId || !madreId || !fecha) { toast("Completa padre, madre y fecha"); return; }
+    if (padreId === madreId) { toast("El padre y la madre no pueden ser el mismo ejemplar"); return; }
     if (fecha > hoyLocal()) { toast("La fecha de nacimiento no puede ser futura"); return; }
     sincronizarFilasDesdeDOM();
     const filasValidas = camadaFilas.filter((f) => f.placa);
@@ -926,6 +940,7 @@ const App = (() => {
       return;
     }
     camadaFilas = [];
+    camadaCabecera = cabeceraVacia();
     toast(`${filasValidas.length} cría(s) registradas`);
     navigate("#/inicio");
   }
