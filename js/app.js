@@ -38,10 +38,13 @@ const App = (() => {
   }
 
   function initials(nombre, placa) {
-    const src = (nombre || placa || "?").trim();
-    const parts = src.split(/\s+/);
+    const n = (nombre || "").trim();
+    // Las crías de una camada no tienen nombre: con las dos primeras cifras de
+    // la placa (0231, 0232…) todas salían iguales. Las últimas tres sí cambian.
+    if (!n) return ((placa || "").trim() || "?").slice(-3).toUpperCase();
+    const parts = n.split(/\s+/);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return src.slice(0, 2).toUpperCase();
+    return n.slice(0, 2).toUpperCase();
   }
 
   function formatFechaCorta(iso) {

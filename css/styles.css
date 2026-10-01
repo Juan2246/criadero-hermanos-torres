@@ -613,7 +613,7 @@ a { color: inherit; }
 .ficha-head h2 { font-size: 22px; }
 .ficha-placa { font-size: 13px; color: var(--ink-600); margin: 2px 0 0; }
 
-.data-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 6px; }
+.data-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0 6px; }
 .data-box {
   display: flex; align-items: center; gap: 10px;
   background: var(--cream-100);
@@ -630,7 +630,7 @@ a { color: inherit; }
 .data-ico.t-peach { background: var(--accent-2-soft); color: var(--accent-2); }
 .data-txt { min-width: 0; }
 .data-label { font-size: 11px; color: var(--ink-600); margin: 0; font-weight: 600; }
-.data-value { font-size: 14px; font-weight: 700; margin: 1px 0 0; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.data-value { font-size: 14px; font-weight: 700; margin: 1px 0 0; color: var(--ink-900); overflow-wrap: anywhere; }
 .data-value .data-sub { display: block; font-size: 10px; font-weight: 600; color: var(--ink-400); white-space: nowrap; }
 .parents-row { margin-top: 12px; }
 .ficha-notas { border-top: 1px solid var(--cream-200); margin-top: 12px; padding-top: 12px; }
