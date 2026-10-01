@@ -1342,13 +1342,59 @@ const App = (() => {
     toast("Tu dispositivo no permite compartir el archivo; se descargó para enviarlo a mano");
   }
 
+  // ---------- Validación del respaldo (el archivo viene de fuera: WhatsApp, descargas…) ----------
+
+  const ID_SEGURO = /^[A-Za-z0-9_-]{1,64}$/;
+  const FECHA_YMD = /^\d{4}-\d{2}-\d{2}$/;
+  const esIdOpcional = (v) => v === null || v === undefined || v === "" || (typeof v === "string" && ID_SEGURO.test(v));
+  const esFechaOpcional = (v) => v === null || v === undefined || v === "" || (typeof v === "string" && FECHA_YMD.test(v));
+
+  function problemaEnEjemplar(e, i) {
+    const n = `Ejemplar ${i + 1}`;
+    if (!e || typeof e !== "object") return `${n}: no es un registro válido`;
+    if (typeof e.id !== "string" || !ID_SEGURO.test(e.id)) return `${n}: le falta el identificador`;
+    if (typeof e.placa !== "string" || !e.placa.trim()) return `${n}: le falta la placa`;
+    if (!esIdOpcional(e.padreId) || !esIdOpcional(e.madreId)) return `${n} (#${e.placa}): padre o madre inválidos`;
+    if (!esFechaOpcional(e.fechaNacimiento) || !esFechaOpcional(e.estadoFecha)) return `${n} (#${e.placa}): fecha inválida`;
+    if (e.fotos !== undefined && !Array.isArray(e.fotos)) return `${n} (#${e.placa}): fotos inválidas`;
+    const fotoMala = (e.fotos || []).some((f) => !f || typeof f.id !== "string" || !ID_SEGURO.test(f.id) ||
+      typeof f.dataUrl !== "string" || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(f.dataUrl) ||
+      typeof f.fechaCaptura !== "string" || isNaN(new Date(f.fechaCaptura)));
+    if (fotoMala) return `${n} (#${e.placa}): tiene una foto dañada`;
+    return null;
+  }
+
+  function validarRespaldo(data) {
+    if (!data || typeof data !== "object" || !Array.isArray(data.ejemplares)) return "El archivo no es un respaldo de esta app";
+    if (data.pendientes !== undefined && !Array.isArray(data.pendientes)) return "La lista de pendientes está dañada";
+    for (let i = 0; i < data.ejemplares.length; i++) {
+      const problema = problemaEnEjemplar(data.ejemplares[i], i);
+      if (problema) return problema;
+    }
+    const placas = new Set();
+    for (const e of data.ejemplares) {
+      if (placas.has(e.placa)) return `La placa #${e.placa} está repetida en el archivo`;
+      placas.add(e.placa);
+    }
+    const pendienteMalo = (data.pendientes || []).some((p) => !p || typeof p.id !== "string" || !ID_SEGURO.test(p.id) ||
+      typeof p.texto !== "string" || !esFechaOpcional(p.fecha) || !esIdOpcional(p.ejemplarId));
+    if (pendienteMalo) return "Hay un pendiente dañado en el archivo";
+    return null;
+  }
+
   async function handleImport(ev) {
     const file = ev.target.files[0];
     if (!file) return;
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data.ejemplares) throw new Error("formato inválido");
+      let data;
+      try { data = JSON.parse(text); } catch (e) { data = null; }
+      const problema = validarRespaldo(data);
+      if (problema) {
+        toast(`No se restauró nada: ${problema}`);
+        ev.target.value = "";
+        return;
+      }
       importPendiente = data;
       const cuantos = (data.ejemplares || []).length;
       openModal(`
@@ -1376,7 +1422,11 @@ const App = (() => {
       toast("Datos restaurados");
       navigate("#/inicio");
     } catch (err) {
-      toast("No se pudo restaurar el respaldo");
+      console.error(err);
+      closeModal();
+      toast(err && err.name === "ConstraintError"
+        ? "No se restauró nada: el respaldo trae placas que ya usas en otros ejemplares"
+        : "No se pudo restaurar el respaldo; tus datos siguen como estaban");
     }
   }
 

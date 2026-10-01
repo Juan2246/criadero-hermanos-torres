@@ -135,31 +135,24 @@ const DB = (() => {
     };
   }
 
+  // Todo en UNA transacción: si cualquier registro falla (placa repetida,
+  // dato corrupto), IndexedDB deshace también el borrado y los datos que
+  // había en el celular quedan intactos.
   async function importAll(data, mode) {
-    if (mode === "reemplazar") {
-      const all = await getAllEjemplares();
-      const store1 = await tx("ejemplares", "readwrite");
-      await Promise.all(all.map((e) => new Promise((res) => {
-        const r = store1.delete(e.id); r.onsuccess = () => res();
-      })));
-      const allP = await getAllPendientes();
-      const store2 = await tx("pendientes", "readwrite");
-      await Promise.all(allP.map((p) => new Promise((res) => {
-        const r = store2.delete(p.id); r.onsuccess = () => res();
-      })));
-    }
-    const storeE = await tx("ejemplares", "readwrite");
-    for (const e of data.ejemplares || []) {
-      await new Promise((res, rej) => {
-        const r = storeE.put(e); r.onsuccess = () => res(); r.onerror = () => rej(r.error);
-      });
-    }
-    const storeP = await tx("pendientes", "readwrite");
-    for (const p of data.pendientes || []) {
-      await new Promise((res, rej) => {
-        const r = storeP.put(p); r.onsuccess = () => res(); r.onerror = () => rej(r.error);
-      });
-    }
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const t = db.transaction(["ejemplares", "pendientes"], "readwrite");
+      const storeE = t.objectStore("ejemplares");
+      const storeP = t.objectStore("pendientes");
+      if (mode === "reemplazar") {
+        storeE.clear();
+        storeP.clear();
+      }
+      (data.ejemplares || []).forEach((e) => storeE.put(e));
+      (data.pendientes || []).forEach((p) => storeP.put(p));
+      t.oncomplete = () => resolve();
+      t.onabort = () => reject(t.error || new Error("IMPORT_ABORTADO"));
+    });
   }
 
   return {
