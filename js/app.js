@@ -1501,23 +1501,28 @@ const App = (() => {
 
   // ---------- Router ----------
 
+  const RUTAS = {
+    inicio: () => renderInicio(),
+    ficha: (param) => renderFicha(param),
+    nuevo: () => renderForm(),
+    editar: (param) => renderForm(param),
+    camada: () => renderCamada(),
+    arbol: (param) => renderArbol(param),
+    descendencia: (param) => renderDescendencia(param),
+    pendientes: () => renderPendientes(),
+    ajustes: () => renderAjustes(),
+  };
+
   async function router() {
     const hash = window.location.hash || "#/inicio";
     const [, route, param] = hash.split("/");
     closeModal();
     try {
-      switch (route) {
-        case "inicio": return renderInicio();
-        case "ficha": return renderFicha(param);
-        case "nuevo": return renderForm();
-        case "editar": return renderForm(param);
-        case "camada": return renderCamada();
-        case "arbol": return renderArbol(param);
-        case "descendencia": return renderDescendencia(param);
-        case "pendientes": return renderPendientes();
-        case "ajustes": return renderAjustes();
-        default: return renderInicio();
-      }
+      // await: sin él, un error dentro de la pantalla (async) se escapaba
+      // del try/catch y el usuario no veía ningún aviso.
+      await (RUTAS[route] || RUTAS.inicio)(param);
+      // Cada pantalla nueva empieza arriba (antes heredaba el scroll de la anterior).
+      window.scrollTo(0, 0);
     } catch (err) {
       console.error(err);
       toast("Ocurrió un error, vuelve a intentar");
@@ -1595,12 +1600,25 @@ const App = (() => {
     });
   }
 
+  // Todos los datos viven en IndexedDB: se pide almacenamiento persistente
+  // para que el navegador no los borre si el celular se queda sin espacio.
+  function pedirAlmacenamientoPersistente() {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    navigator.storage.persisted()
+      .then((yaPersistente) => (yaPersistente ? true : navigator.storage.persist()))
+      .catch((err) => console.warn("No se pudo pedir almacenamiento persistente", err));
+  }
+
   function init() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", TEMAS[temaActual()].themeColor);
     initDelegation();
     window.addEventListener("hashchange", router);
     router();
+    pedirAlmacenamientoPersistente();
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      navigator.serviceWorker.register("./sw.js")
+        .catch((err) => console.warn("No se pudo registrar el service worker", err));
     }
   }
 

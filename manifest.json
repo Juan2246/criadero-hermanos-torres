@@ -1,7 +1,11 @@
 {
+  "id": "./",
   "name": "Criaderos Hermanos Torres",
   "short_name": "H. Torres",
   "description": "Registro genealógico y control del criadero",
+  "lang": "es-PE",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities"],
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
