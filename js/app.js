@@ -1231,6 +1231,7 @@ const App = (() => {
 
   async function renderPendientes() {
     const all = await DB.getAllPendientes();
+    const ejemplares = new Map((await DB.getAllEjemplares()).map((e) => [e.id, e]));
     all.sort((a, b) => {
       if (a.completado !== b.completado) return a.completado ? 1 : -1;
       if (!a.fecha) return 1;
@@ -1244,13 +1245,14 @@ const App = (() => {
         const diff = diasHasta(p.fecha);
         if (diff <= 7) { urgente = true; subtext = diff < 0 ? "Venció" : diff === 0 ? "Es hoy" : `En ${diff} día(s)`; }
       }
+      const relacionadoTexto = (ej) => (ej ? ` · ${esc(ej.nombre || "Sin nombre")} #${esc(ej.placa)}` : "");
       const icon = p.tipo === "vacuna" ? "&#9679;" : p.tipo === "foto" ? "&#9678;" : "&#9670;";
       return `
       <div class="pendiente-item">
         <div class="pendiente-icon ${urgente ? "urgente" : ""}">${icon}</div>
         <div style="flex:1;${p.completado ? "opacity:0.5;text-decoration:line-through;" : ""}">
           <p class="title">${esc(p.texto)}</p>
-          <p class="sub ${urgente ? "urgente" : ""}">${p.completado ? "Completado" : subtext}</p>
+          <p class="sub ${urgente ? "urgente" : ""}">${p.completado ? "Completado" : subtext}${relacionadoTexto(ejemplares.get(p.ejemplarId))}</p>
         </div>
         <button class="pendiente-check" data-action="completar-pendiente" data-id="${p.id}" aria-label="Marcar completado">${p.completado ? "↺" : "✓"}</button>
       </div>`;
