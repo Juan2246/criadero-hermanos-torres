@@ -538,7 +538,7 @@ const App = (() => {
     const e = await DB.getEjemplar(ejemplarId);
     if (!e.fotos) e.fotos = [];
     if (e.fotos.length >= 8) {
-      toast("Máximo 8 fotos por ejemplar");
+      toast("Máximo 8 fotos por ejemplar: elimina una para agregar otra");
       ev.target.value = "";
       return;
     }
@@ -575,7 +575,7 @@ const App = (() => {
         <button class="btn" data-action="disparar-camara">Tomar foto</button>
         <button class="btn" data-action="disparar-galeria">Elegir de galería</button>
       </div>
-      <p class="hint" style="margin-top:10px;">Máximo 8 fotos por ejemplar.</p>
+      <p class="hint" style="margin-top:10px;">Máximo 8 fotos por ejemplar. Para quitar una, tócala en la línea de crecimiento.</p>
     `);
   }
 
@@ -619,8 +619,30 @@ const App = (() => {
         <input type="date" id="foto-fecha-edit" value="${fechaDeFoto(foto.fechaCaptura)}" max="${hoy}">
       </div>
       <button class="btn btn-primary" data-action="guardar-fecha-foto" data-id="${ejemplarId}" data-foto-id="${fotoId}">Guardar fecha</button>
+      <button class="btn btn-danger" style="margin-top:8px;" data-action="eliminar-foto" data-id="${ejemplarId}" data-foto-id="${fotoId}">Eliminar foto</button>
       <button class="btn" style="margin-top:8px;" data-action="cerrar-modal">Cerrar</button>
     `);
+  }
+
+  // Con el tope de 8 fotos y sin forma de borrar, una ficha llena quedaba
+  // bloqueada para siempre (y una foto equivocada no se podía quitar).
+  function pedirEliminarFoto(ejemplarId, fotoId) {
+    openModal(`
+      <p class="section-label">Eliminar foto</p>
+      <p style="font-size:14px;color:var(--ink-600);margin:0 0 14px;">La foto se borra de este celular. Solo podrás recuperarla desde un respaldo anterior.</p>
+      <button class="btn btn-danger" data-action="confirmar-eliminar-foto" data-id="${ejemplarId}" data-foto-id="${fotoId}">Sí, eliminar</button>
+      <button class="btn" style="margin-top:8px;" data-action="cerrar-modal">Cancelar</button>
+    `);
+  }
+
+  async function confirmarEliminarFoto(ejemplarId, fotoId) {
+    const e = await DB.getEjemplar(ejemplarId);
+    if (!e) return;
+    e.fotos = (e.fotos || []).filter((f) => f.id !== fotoId);
+    await DB.saveEjemplar(e);
+    closeModal();
+    toast("Foto eliminada");
+    renderFicha(ejemplarId);
   }
 
   async function guardarFechaFoto(ejemplarId, fotoId) {
@@ -1539,6 +1561,8 @@ const App = (() => {
           case "editar-foto": resultado = abrirEditarFoto(id, target.dataset.fotoId); break;
           case "confirmar-fecha-nueva-foto": resultado = confirmarFechaNuevaFoto(); break;
           case "guardar-fecha-foto": resultado = guardarFechaFoto(id, target.dataset.fotoId); break;
+          case "eliminar-foto": pedirEliminarFoto(id, target.dataset.fotoId); break;
+          case "confirmar-eliminar-foto": resultado = confirmarEliminarFoto(id, target.dataset.fotoId); break;
           case "cerrar-modal": closeModal(); break;
           case "abrir-picker": resultado = abrirPicker(target.dataset.target); break;
           case "elegir-picker": elegirPicker(target.dataset.target, target.dataset.id); break;
