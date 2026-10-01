@@ -195,8 +195,10 @@ const App = (() => {
     if (titulo) { titulo.id = "modal-titulo"; box.setAttribute("aria-labelledby", "modal-titulo"); }
     backdrop.classList.add("open");
     backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
-    const primero = box.querySelector("input, select, textarea, button");
-    if (primero) primero.focus({ preventScroll: true });
+    // El foco va al diálogo, no a su primer botón: en «Eliminar» o «Restaurar»
+    // ese botón es la acción destructiva y un Enter la confirmaría.
+    box.setAttribute("tabindex", "-1");
+    box.focus({ preventScroll: true });
   }
 
   function closeModal() {

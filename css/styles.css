@@ -883,3 +883,4 @@ a { color: inherit; }
   outline-offset: 3px;
 }
 .fam-frame:focus-within .fam-goto { display: inline-block; }
+.modal-box:focus { outline: none; }
