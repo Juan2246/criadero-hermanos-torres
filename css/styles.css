@@ -871,3 +871,15 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Foco visible para quien navega con teclado o lector de pantalla
+   (las tarjetas y filas son role="button" con tabindex). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.list-item:focus-visible, .grid-card:focus-visible, .desc-row:focus-visible,
+.link-row:focus-visible, .timeline-item:focus-visible, .fam-frame:focus-visible {
+  outline-offset: 3px;
+}
+.fam-frame:focus-within .fam-goto { display: inline-block; }

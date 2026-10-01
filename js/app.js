@@ -19,12 +19,15 @@ const App = (() => {
       t = document.createElement("div");
       t.id = "toast";
       t.className = "toast";
+      t.setAttribute("role", "status");
+      t.setAttribute("aria-live", "polite");
       document.body.appendChild(t);
     }
     t.textContent = msg;
     t.classList.add("show");
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+    // Los avisos largos (errores de respaldo) necesitan más tiempo para leerse.
+    t._timer = setTimeout(() => t.classList.remove("show"), Math.max(2200, msg.length * 60));
   }
 
   function esc(str) {
@@ -172,6 +175,8 @@ const App = (() => {
 
   // ---------- Modal ----------
 
+  let focoAntesDelModal = null;
+
   function openModal(html) {
     let backdrop = document.getElementById("modal-backdrop");
     if (!backdrop) {
@@ -180,14 +185,23 @@ const App = (() => {
       backdrop.className = "modal-backdrop";
       document.body.appendChild(backdrop);
     }
-    backdrop.innerHTML = `<div id="modal-box" class="modal-box">${html}</div>`;
+    if (!backdrop.classList.contains("open")) focoAntesDelModal = document.activeElement;
+    backdrop.innerHTML = `<div id="modal-box" class="modal-box" role="dialog" aria-modal="true">${html}</div>`;
+    const box = document.getElementById("modal-box");
+    const titulo = box.querySelector(".section-label");
+    if (titulo) { titulo.id = "modal-titulo"; box.setAttribute("aria-labelledby", "modal-titulo"); }
     backdrop.classList.add("open");
     backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
+    const primero = box.querySelector("input, select, textarea, button");
+    if (primero) primero.focus({ preventScroll: true });
   }
 
   function closeModal() {
     const backdrop = document.getElementById("modal-backdrop");
+    const estabaAbierto = backdrop && backdrop.classList.contains("open");
     if (backdrop) backdrop.classList.remove("open");
+    if (estabaAbierto && focoAntesDelModal && document.contains(focoAntesDelModal)) focoAntesDelModal.focus({ preventScroll: true });
+    focoAntesDelModal = null;
     fotoPendiente = null;
     activePickerTarget = null;
     importPendiente = null;
@@ -200,7 +214,7 @@ const App = (() => {
     const avatar = candidatoActual ? miniAvatarHtml(candidatoActual) : `<div class="mini-avatar mini-avatar-empty"></div>`;
     return `
       <input type="hidden" id="${hiddenId}" value="${candidatoActual ? candidatoActual.id : ""}">
-      <button type="button" class="picker-trigger" data-action="abrir-picker" data-target="${hiddenId}">
+      <button type="button" class="picker-trigger" id="${hiddenId}-btn" aria-labelledby="${hiddenId}-lbl ${hiddenId}-label" data-action="abrir-picker" data-target="${hiddenId}">
         <span class="picker-avatar" id="${hiddenId}-avatar">${avatar}</span>
         <span class="picker-label" id="${hiddenId}-label">${label}</span>
         <span class="arrow">›</span>
@@ -222,7 +236,7 @@ const App = (() => {
     activePickerTarget = hiddenId;
     openModal(`
       <p class="section-label">${esc(reg.titulo)}</p>
-      <input class="search-input" id="picker-search" placeholder="Buscar por nombre, placa o color de placa">
+      <input class="search-input" id="picker-search" type="search" aria-label="Buscar ejemplar" placeholder="Buscar por nombre, placa o color de placa">
       <div class="picker-list" id="picker-results"></div>
     `);
     renderPickerResults("");
@@ -287,7 +301,9 @@ const App = (() => {
     content().innerHTML = innerHtml;
     document.body.className = bodyClass || "bg-inicio";
     document.querySelectorAll(".bottom-nav button").forEach((b) => {
-      b.classList.toggle("active", b.dataset.nav === activeNav);
+      const activo = b.dataset.nav === activeNav;
+      b.classList.toggle("active", activo);
+      if (activo) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
   }
 
@@ -317,7 +333,7 @@ const App = (() => {
       ? `<img class="avatar avatar-photo" src="${foto}" alt="">`
       : `<div class="avatar ${estado === "fallecido" ? "fallecido" : ""}">${initials(e.nombre, e.placa)}</div>`;
     return `
-      <div class="list-item ${dimmed ? "dimmed" : ""}" data-action="ficha" data-id="${e.id}">
+      <div class="list-item ${dimmed ? "dimmed" : ""}" role="button" tabindex="0" data-action="ficha" data-id="${e.id}">
         ${avatarHtml}
         <div class="info">
           <p class="name">${esc(e.nombre || "Sin nombre")} · #${esc(e.placa)}${reproductorLabel(e) ? ` <span class="repro-badge">${reproductorLabel(e)}</span>` : ""}</p>
@@ -335,7 +351,7 @@ const App = (() => {
       ? `<img src="${foto}" alt="">`
       : `<div class="grid-photo-fallback">${initials(e.nombre, e.placa)}</div>`;
     return `
-      <div class="grid-card ${dimmed ? "dimmed" : ""}" data-action="ficha" data-id="${e.id}">
+      <div class="grid-card ${dimmed ? "dimmed" : ""}" role="button" tabindex="0" data-action="ficha" data-id="${e.id}">
         <div class="grid-photo">${fotoHtml}<span class="badge-estado badge-${estado} grid-badge">${estadoLabel(estado)}</span>${reproductorLabel(e) ? `<span class="repro-badge grid-repro">${reproductorLabel(e)}</span>` : ""}</div>
         <p class="name">${esc(e.nombre || "Sin nombre")} · #${esc(e.placa)}</p>
         <p class="meta">${esc(e.colorPlaca ? "Placa " + e.colorPlaca : (e.color || "Sin color registrado"))}</p>
@@ -386,17 +402,17 @@ const App = (() => {
           </div>
         </div>
         <div class="search-row">
-          <input id="search-input" class="search-input" placeholder="Buscar por placa, nombre o color" value="${esc(state.busqueda)}">
+          <input id="search-input" class="search-input" type="search" aria-label="Buscar ejemplares" placeholder="Buscar por placa, nombre o color" value="${esc(state.busqueda)}">
           <div class="view-toggle" role="group" aria-label="Cambiar vista">
-            <button class="${state.vista === "lista" ? "active" : ""}" data-action="vista" data-vista="lista" aria-label="Vista de lista">☰</button>
-            <button class="${state.vista === "cuadricula" ? "active" : ""}" data-action="vista" data-vista="cuadricula" aria-label="Vista de cuadrícula">⊞</button>
+            <button type="button" class="${state.vista === "lista" ? "active" : ""}" aria-pressed="${state.vista === "lista"}" data-action="vista" data-vista="lista" aria-label="Vista de lista">☰</button>
+            <button type="button" class="${state.vista === "cuadricula" ? "active" : ""}" aria-pressed="${state.vista === "cuadricula"}" data-action="vista" data-vista="cuadricula" aria-label="Vista de cuadrícula">⊞</button>
           </div>
         </div>
-        <div class="filter-chips">
-          <span class="chip ${state.filtro === "todos" ? "active" : ""}" data-action="filtro" data-filter="todos">Todos</span>
-          <span class="chip ${state.filtro === "vivo" ? "active" : ""}" data-action="filtro" data-filter="vivo">Vivos</span>
-          <span class="chip ${state.filtro === "vendido" ? "active" : ""}" data-action="filtro" data-filter="vendido">Vendidos</span>
-          <span class="chip ${state.filtro === "fallecido" ? "active" : ""}" data-action="filtro" data-filter="fallecido">Fallecidos</span>
+        <div class="filter-chips" role="group" aria-label="Filtrar por estado">
+          <button type="button" class="chip ${state.filtro === "todos" ? "active" : ""}" aria-pressed="${state.filtro === "todos"}" data-action="filtro" data-filter="todos">Todos</button>
+          <button type="button" class="chip ${state.filtro === "vivo" ? "active" : ""}" aria-pressed="${state.filtro === "vivo"}" data-action="filtro" data-filter="vivo">Vivos</button>
+          <button type="button" class="chip ${state.filtro === "vendido" ? "active" : ""}" aria-pressed="${state.filtro === "vendido"}" data-action="filtro" data-filter="vendido">Vendidos</button>
+          <button type="button" class="chip ${state.filtro === "fallecido" ? "active" : ""}" aria-pressed="${state.filtro === "fallecido"}" data-action="filtro" data-filter="fallecido">Fallecidos</button>
         </div>
         <div id="lista-resultados"></div>
       </div>
@@ -424,7 +440,7 @@ const App = (() => {
 
     const photoGrid = `
       <div class="photo-grid">
-        ${fotos.slice(0, 3).map((f) => `<div class="photo-thumb" data-action="editar-foto" data-id="${e.id}" data-foto-id="${f.id}"><img src="${f.dataUrl}" alt=""></div>`).join("")}
+        ${fotos.slice(0, 3).map((f) => `<div class="photo-thumb" role="button" tabindex="0" aria-label="Foto del ${formatFechaCorta(fechaDeFoto(f.fechaCaptura))}" data-action="editar-foto" data-id="${e.id}" data-foto-id="${f.id}"><img src="${f.dataUrl}" alt=""></div>`).join("")}
         <button class="photo-add" data-action="agregar-foto-menu" data-id="${e.id}" aria-label="Agregar foto">+</button>
       </div>`;
 
@@ -432,7 +448,7 @@ const App = (() => {
       ? fotos.map((f) => {
           const edad = calcEdadTexto(e.fechaNacimiento, f.fechaCaptura);
           return `
-          <div class="timeline-item" data-action="editar-foto" data-id="${e.id}" data-foto-id="${f.id}">
+          <div class="timeline-item" role="button" tabindex="0" data-action="editar-foto" data-id="${e.id}" data-foto-id="${f.id}">
             <img class="timeline-thumb" src="${f.dataUrl}" alt="">
             <div>
               <p class="timeline-age">${edad || "Foto"}</p>
@@ -495,11 +511,11 @@ const App = (() => {
           </div>
           ${dataBoxes}
           <div class="parents-row">
-            <div class="link-row" data-action="${padre ? "ficha" : ""}" data-id="${padre ? padre.id : ""}">
+            <div class="link-row" ${padre ? 'role="button" tabindex="0"' : ""} data-action="${padre ? "ficha" : ""}" data-id="${padre ? padre.id : ""}">
               <span><b>Padre:</b> ${padre ? esc(padre.nombre || "") + " #" + esc(padre.placa) : "Origen desconocido"}</span>
               ${padre ? '<span class="arrow">›</span>' : ""}
             </div>
-            <div class="link-row" data-action="${madre ? "ficha" : ""}" data-id="${madre ? madre.id : ""}">
+            <div class="link-row" ${madre ? 'role="button" tabindex="0"' : ""} data-action="${madre ? "ficha" : ""}" data-id="${madre ? madre.id : ""}">
               <span><b>Madre:</b> ${madre ? esc(madre.nombre || "") + " #" + esc(madre.placa) : "Origen desconocido"}</span>
               ${madre ? '<span class="arrow">›</span>' : ""}
             </div>
@@ -586,7 +602,7 @@ const App = (() => {
       <p class="section-label">¿Cuándo se tomó esta foto?</p>
       <img src="${dataUrl}" style="width:100%;border-radius:10px;margin-bottom:12px;display:block;">
       <div class="field">
-        <label>Fecha de la foto</label>
+        <label for="nueva-foto-fecha">Fecha de la foto</label>
         <input type="date" id="nueva-foto-fecha" value="${hoy}" max="${hoy}">
       </div>
       <button class="btn btn-primary" data-action="confirmar-fecha-nueva-foto">Guardar foto</button>
@@ -615,7 +631,7 @@ const App = (() => {
     openModal(`
       <img src="${foto.dataUrl}" style="width:100%;border-radius:10px;margin-bottom:12px;display:block;">
       <div class="field">
-        <label>Fecha de la foto</label>
+        <label for="foto-fecha-edit">Fecha de la foto</label>
         <input type="date" id="foto-fecha-edit" value="${fechaDeFoto(foto.fechaCaptura)}" max="${hoy}">
       </div>
       <button class="btn btn-primary" data-action="guardar-fecha-foto" data-id="${ejemplarId}" data-foto-id="${fotoId}">Guardar fecha</button>
@@ -666,7 +682,7 @@ const App = (() => {
     openModal(`
       <p class="section-label">Cambiar estado</p>
       <div class="field">
-        <label>Estado</label>
+        <label for="estado-select">Estado</label>
         <select id="estado-select">
           <option value="vivo" ${(!e.estado || e.estado === "vivo") ? "selected" : ""}>Vivo</option>
           <option value="vendido" ${e.estado === "vendido" ? "selected" : ""}>Vendido</option>
@@ -675,11 +691,11 @@ const App = (() => {
         </select>
       </div>
       <div class="field">
-        <label>Fecha</label>
+        <label for="estado-fecha">Fecha</label>
         <input type="date" id="estado-fecha" value="${e.estadoFecha || ""}" max="${hoyLocal()}">
       </div>
       <div class="field">
-        <label>Nota (opcional)</label>
+        <label for="estado-nota">Nota (opcional)</label>
         <input type="text" id="estado-nota" placeholder="Ej. vendido a Don Pepe, no sobrevivió" value="${esc(e.estadoNota || "")}">
       </div>
       <button class="btn btn-primary" data-action="guardar-estado" data-id="${e.id}">Guardar</button>
@@ -726,20 +742,20 @@ const App = (() => {
       <div class="screen">
         <div class="card">
           <div class="field">
-            <label>N° de placa *</label>
+            <label for="f-placa">N° de placa *</label>
             <input id="f-placa" value="${esc(e.placa || "")}" placeholder="Ej. 0231">
           </div>
           <div class="field">
-            <label>Nombre / referencia</label>
+            <label for="f-nombre">Nombre / referencia</label>
             <input id="f-nombre" value="${esc(e.nombre || "")}" placeholder="Ej. Gallo Colorado">
           </div>
           <div class="field-row">
             <div class="field">
-              <label>Fecha de nacimiento</label>
+              <label for="f-fecha">Fecha de nacimiento</label>
               <input type="date" id="f-fecha" value="${e.fechaNacimiento || ""}" max="${hoyLocal()}">
             </div>
             <div class="field">
-              <label>Sexo</label>
+              <label for="f-sexo">Sexo</label>
               <select id="f-sexo">
                 <option value="" ${!e.sexo ? "selected" : ""}>Sin especificar</option>
                 <option value="M" ${e.sexo === "M" ? "selected" : ""}>Macho</option>
@@ -754,28 +770,28 @@ const App = (() => {
           </label>
           <div class="field-row">
             <div class="field">
-              <label>Color / plumaje</label>
+              <label for="f-color">Color / plumaje</label>
               <input id="f-color" value="${esc(e.color || "")}">
             </div>
             <div class="field">
-              <label>Tipo de cresta</label>
+              <label for="f-cresta">Tipo de cresta</label>
               <input id="f-cresta" value="${esc(e.cresta || "")}">
             </div>
           </div>
           <div class="field">
-            <label>Color de placa</label>
+            <label for="f-colorplaca">Color de placa</label>
             <input id="f-colorplaca" value="${esc(e.colorPlaca || "")}" placeholder="Ej. Rojo, Azul, Amarillo">
           </div>
           <div class="field">
-            <label>Padre</label>
+            <label id="f-padre-lbl" for="f-padre-btn">Padre</label>
             ${pickerFieldHtml("f-padre", padreActual, "— Origen desconocido —")}
           </div>
           <div class="field">
-            <label>Madre</label>
+            <label id="f-madre-lbl" for="f-madre-btn">Madre</label>
             ${pickerFieldHtml("f-madre", madreActual, "— Origen desconocido —")}
           </div>
           <div class="field">
-            <label>Observaciones</label>
+            <label for="f-notas">Observaciones</label>
             <textarea id="f-notas" rows="3">${esc(e.notas || "")}</textarea>
           </div>
           <button class="btn btn-primary" data-action="guardar-ejemplar" data-id="${id || ""}">Guardar</button>
@@ -874,16 +890,16 @@ const App = (() => {
           <p class="section-label">Datos de la camada</p>
           <div class="field-row">
             <div class="field">
-              <label>Padre *</label>
+              <label id="c-padre-lbl" for="c-padre-btn">Padre *</label>
               ${pickerFieldHtml("c-padre", padreSel, "Seleccionar")}
             </div>
             <div class="field">
-              <label>Madre *</label>
+              <label id="c-madre-lbl" for="c-madre-btn">Madre *</label>
               ${pickerFieldHtml("c-madre", madreSel, "Seleccionar")}
             </div>
           </div>
           <div class="field">
-            <label>Fecha de nacimiento de la camada *</label>
+            <label for="c-fecha">Fecha de nacimiento de la camada *</label>
             <input type="date" id="c-fecha" max="${hoyLocal()}" value="${esc(camadaCabecera.fecha)}">
           </div>
         </div>
@@ -892,11 +908,11 @@ const App = (() => {
           <div id="filas-crias">
             ${camadaFilas.map((f, i) => `
               <div class="cria-row">
-                <div class="field"><label>Placa</label><input class="cria-placa" data-idx="${i}" value="${esc(f.placa)}"></div>
-                <div class="field"><label>Color de placa</label><input class="cria-colorplaca" data-idx="${i}" value="${esc(f.colorPlaca)}"></div>
-                <div class="field"><label>Color</label><input class="cria-color" data-idx="${i}" value="${esc(f.color)}"></div>
-                <div class="field"><label>Sexo</label><select class="cria-sexo" data-idx="${i}"><option value="" ${!f.sexo?"selected":""}>—</option><option value="M" ${f.sexo==="M"?"selected":""}>M</option><option value="H" ${f.sexo==="H"?"selected":""}>H</option></select></div>
-                <button class="btn-ghost cria-quitar" data-action="quitar-fila-cria" data-idx="${i}" aria-label="Quitar fila">×</button>
+                <div class="field"><label for="cria-placa-${i}">Placa</label><input class="cria-placa" id="cria-placa-${i}" data-idx="${i}" value="${esc(f.placa)}"></div>
+                <div class="field"><label for="cria-colorplaca-${i}">Color de placa</label><input class="cria-colorplaca" id="cria-colorplaca-${i}" data-idx="${i}" value="${esc(f.colorPlaca)}"></div>
+                <div class="field"><label for="cria-color-${i}">Color</label><input class="cria-color" id="cria-color-${i}" data-idx="${i}" value="${esc(f.color)}"></div>
+                <div class="field"><label for="cria-sexo-${i}">Sexo</label><select class="cria-sexo" id="cria-sexo-${i}" data-idx="${i}"><option value="" ${!f.sexo?"selected":""}>—</option><option value="M" ${f.sexo==="M"?"selected":""}>M</option><option value="H" ${f.sexo==="H"?"selected":""}>H</option></select></div>
+                <button class="btn-ghost cria-quitar" data-action="quitar-fila-cria" data-idx="${i}" aria-label="Quitar cría ${i + 1}">×</button>
               </div>`).join("")}
           </div>
           <button class="btn" data-action="agregar-fila-cria">+ Agregar cría</button>
@@ -1107,12 +1123,12 @@ const App = (() => {
     if (ejemplar.sexo === "M") clases.push("fam-frame-macho");
     if (ejemplar.sexo === "H") clases.push("fam-frame-hembra");
     return `
-      <div class="${clases.join(" ")}" data-action="foco-arbol" data-id="${ejemplar.id}" style="left:${x}px;top:${y}px;">
+      <div class="${clases.join(" ")}" role="button" tabindex="0" data-action="foco-arbol" data-id="${ejemplar.id}" style="left:${x}px;top:${y}px;">
         ${esRaiz ? '<span class="fam-root-badge" aria-hidden="true">★</span>' : ""}
         <div class="fam-photo">${fotoHtml}</div>
         <p class="fam-name">${esc(ejemplar.nombre || "Sin nombre")}</p>
         <p class="fam-placa">#${esc(ejemplar.placa)}</p>
-        <span class="fam-goto" data-action="ficha" data-id="${ejemplar.id}">Ver ficha ›</span>
+        <span class="fam-goto" role="button" tabindex="0" data-action="ficha" data-id="${ejemplar.id}">Ver ficha ›</span>
       </div>`;
   }
 
@@ -1199,7 +1215,7 @@ const App = (() => {
       const est = f.ejemplar.estado || "vivo";
       const esHijo = f.generacion === 1;
       return `
-      <div class="desc-row ${esHijo ? "" : "child-of"}" data-action="ficha" data-id="${f.ejemplar.id}">
+      <div class="desc-row ${esHijo ? "" : "child-of"}" role="button" tabindex="0" data-action="ficha" data-id="${f.ejemplar.id}">
         ${miniAvatarHtml(f.ejemplar, "desc-photo")}
         <div class="dot dot-${est}"></div>
         <span style="flex:1;font-size:13px;">${esc(f.ejemplar.nombre || "Sin nombre")} · #${esc(f.ejemplar.placa)}${!esHijo ? ` <span style="color:var(--ink-400);font-size:11px;">(${etiquetaGeneracion(f.generacion).toLowerCase()})</span>` : ""}</span>
@@ -1254,7 +1270,7 @@ const App = (() => {
           <p class="title">${esc(p.texto)}</p>
           <p class="sub ${urgente ? "urgente" : ""}">${p.completado ? "Completado" : subtext}${relacionadoTexto(ejemplares.get(p.ejemplarId))}</p>
         </div>
-        <button class="pendiente-check" data-action="completar-pendiente" data-id="${p.id}" aria-label="Marcar completado">${p.completado ? "↺" : "✓"}</button>
+        <button class="pendiente-check" data-action="completar-pendiente" data-id="${p.id}" aria-label="${p.completado ? "Marcar como pendiente" : "Marcar como completado"}: ${esc(p.texto)}">${p.completado ? "↺" : "✓"}</button>
       </div>`;
     };
 
@@ -1274,12 +1290,12 @@ const App = (() => {
     openModal(`
       <p class="section-label">Nuevo pendiente</p>
       <div class="field">
-        <label>Descripción</label>
+        <label for="p-texto">Descripción</label>
         <input id="p-texto" placeholder="Ej. Vacuna de Gallo Colorado">
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Tipo</label>
+          <label for="p-tipo">Tipo</label>
           <select id="p-tipo">
             <option value="vacuna">Vacuna / salud</option>
             <option value="foto">Foto de seguimiento</option>
@@ -1287,12 +1303,12 @@ const App = (() => {
           </select>
         </div>
         <div class="field">
-          <label>Fecha</label>
+          <label for="p-fecha">Fecha</label>
           <input type="date" id="p-fecha">
         </div>
       </div>
       <div class="field">
-        <label>Ejemplar relacionado (opcional)</label>
+        <label for="p-ejemplar">Ejemplar relacionado (opcional)</label>
         <select id="p-ejemplar"><option value="">— Ninguno —</option>${all.map((e) => `<option value="${e.id}">${esc(e.nombre || "")} · #${esc(e.placa)}</option>`).join("")}</select>
       </div>
       <button class="btn btn-primary" data-action="guardar-pendiente">Guardar</button>
@@ -1532,6 +1548,20 @@ const App = (() => {
   // ---------- Global click delegation ----------
 
   function initDelegation() {
+    // Las tarjetas y filas son <div role="button">: Enter y Espacio las activan
+    // igual que un toque. Escape cierra el modal abierto.
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const backdrop = document.getElementById("modal-backdrop");
+        if (backdrop && backdrop.classList.contains("open")) { e.preventDefault(); closeModal(); }
+        return;
+      }
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const el = e.target;
+      if (!el.matches || !el.matches('[role="button"][data-action]')) return;
+      e.preventDefault();
+      el.click();
+    });
     document.body.addEventListener("click", (e) => {
       const target = e.target.closest("[data-action]");
       if (!target) return;
