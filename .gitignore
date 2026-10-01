@@ -1,0 +1,21 @@
+# Dependencias de la prueba e2e (la app no tiene build ni dependencias)
+node_modules/
+package-lock.json
+
+# Salida de pruebas y respaldos descargados al probar
+pruebas/salida/
+respaldo-criadero-*.json
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Configuración local de Claude Code
+.claude/
+
+# Despliegues locales
+.netlify/
+.vercel/

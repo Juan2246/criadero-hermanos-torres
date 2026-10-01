@@ -1,0 +1,14 @@
+{
+  "name": "criadero-hermanos-torres",
+  "version": "1.1.0",
+  "private": true,
+  "description": "PWA de registro genealógico para un criadero familiar. Sin build: HTML, CSS y JS servidos tal cual.",
+  "type": "module",
+  "scripts": {
+    "servir": "npx --yes serve -l 5181 .",
+    "prueba": "node pruebas/e2e.mjs http://127.0.0.1:5181/"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}
