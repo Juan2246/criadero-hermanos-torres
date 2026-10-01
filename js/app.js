@@ -44,6 +44,30 @@ const App = (() => {
     return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
   }
 
+  // Fechas en hora LOCAL. toISOString() da la fecha en UTC: en Perú, desde
+  // las 19:00 ya es "mañana" y las fotos y pendientes salían con un día de más.
+  function ymdLocal(d) {
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  function hoyLocal() {
+    return ymdLocal(new Date());
+  }
+
+  // fechaCaptura puede venir como "2026-09-20T12:00:00" (hora local, galería)
+  // o como ISO en UTC con "Z" (cámara, versiones anteriores): ambas se leen bien.
+  function fechaDeFoto(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? String(iso || "").slice(0, 10) : ymdLocal(d);
+  }
+
+  function diasHasta(ymd) {
+    const objetivo = new Date(ymd + "T00:00:00");
+    const hoy = new Date(hoyLocal() + "T00:00:00");
+    return Math.round((objetivo - hoy) / 86400000);
+  }
+
   function calcEdadTexto(nacISO, capISO) {
     if (!nacISO) return null;
     const nac = new Date(nacISO + "T00:00:00");
@@ -408,7 +432,7 @@ const App = (() => {
             <img class="timeline-thumb" src="${f.dataUrl}" alt="">
             <div>
               <p class="timeline-age">${edad || "Foto"}</p>
-              <p class="timeline-date">${formatFechaCorta(f.fechaCaptura.slice(0, 10))}</p>
+              <p class="timeline-date">${formatFechaCorta(fechaDeFoto(f.fechaCaptura))}</p>
             </div>
             <span class="edit-hint">✎</span>
           </div>`;
@@ -553,7 +577,7 @@ const App = (() => {
 
   function abrirConfirmarFechaFoto(ejemplarId, dataUrl) {
     fotoPendiente = { ejemplarId, dataUrl };
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = hoyLocal();
     openModal(`
       <p class="section-label">¿Cuándo se tomó esta foto?</p>
       <img src="${dataUrl}" style="width:100%;border-radius:10px;margin-bottom:12px;display:block;">
@@ -571,6 +595,7 @@ const App = (() => {
     const { ejemplarId, dataUrl } = fotoPendiente;
     const fecha = document.getElementById("nueva-foto-fecha").value;
     if (!fecha) { toast("Elige una fecha"); return; }
+    if (fecha > hoyLocal()) { toast("La fecha de la foto no puede ser futura"); return; }
     fotoPendiente = null;
     await guardarFotoConFecha(ejemplarId, dataUrl, fecha + "T12:00:00");
     closeModal();
@@ -582,12 +607,12 @@ const App = (() => {
     const e = await DB.getEjemplar(ejemplarId);
     const foto = (e.fotos || []).find((f) => f.id === fotoId);
     if (!foto) return;
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = hoyLocal();
     openModal(`
       <img src="${foto.dataUrl}" style="width:100%;border-radius:10px;margin-bottom:12px;display:block;">
       <div class="field">
         <label>Fecha de la foto</label>
-        <input type="date" id="foto-fecha-edit" value="${foto.fechaCaptura.slice(0, 10)}" max="${hoy}">
+        <input type="date" id="foto-fecha-edit" value="${fechaDeFoto(foto.fechaCaptura)}" max="${hoy}">
       </div>
       <button class="btn btn-primary" data-action="guardar-fecha-foto" data-id="${ejemplarId}" data-foto-id="${fotoId}">Guardar fecha</button>
       <button class="btn" style="margin-top:8px;" data-action="cerrar-modal">Cerrar</button>
@@ -597,6 +622,7 @@ const App = (() => {
   async function guardarFechaFoto(ejemplarId, fotoId) {
     const fecha = document.getElementById("foto-fecha-edit").value;
     if (!fecha) { toast("Elige una fecha"); return; }
+    if (fecha > hoyLocal()) { toast("La fecha de la foto no puede ser futura"); return; }
     const e = await DB.getEjemplar(ejemplarId);
     const foto = (e.fotos || []).find((f) => f.id === fotoId);
     if (!foto) return;
@@ -624,7 +650,7 @@ const App = (() => {
       </div>
       <div class="field">
         <label>Fecha</label>
-        <input type="date" id="estado-fecha" value="${e.estadoFecha || ""}">
+        <input type="date" id="estado-fecha" value="${e.estadoFecha || ""}" max="${hoyLocal()}">
       </div>
       <div class="field">
         <label>Nota (opcional)</label>
@@ -636,8 +662,10 @@ const App = (() => {
 
   async function guardarEstado(id) {
     const e = await DB.getEjemplar(id);
+    const estadoFecha = document.getElementById("estado-fecha").value || null;
+    if (estadoFecha && estadoFecha > hoyLocal()) { toast("La fecha no puede ser futura"); return; }
     e.estado = document.getElementById("estado-select").value;
-    e.estadoFecha = document.getElementById("estado-fecha").value || null;
+    e.estadoFecha = estadoFecha;
     e.estadoNota = document.getElementById("estado-nota").value.trim();
     await DB.saveEjemplar(e);
     closeModal();
@@ -678,7 +706,7 @@ const App = (() => {
           <div class="field-row">
             <div class="field">
               <label>Fecha de nacimiento</label>
-              <input type="date" id="f-fecha" value="${e.fechaNacimiento || ""}">
+              <input type="date" id="f-fecha" value="${e.fechaNacimiento || ""}" max="${hoyLocal()}">
             </div>
             <div class="field">
               <label>Sexo</label>
@@ -748,10 +776,12 @@ const App = (() => {
   async function guardarEjemplar(id) {
     const placa = document.getElementById("f-placa").value.trim();
     if (!placa) { toast("La placa es obligatoria"); return; }
+    const fechaNac = document.getElementById("f-fecha").value || null;
+    if (fechaNac && fechaNac > hoyLocal()) { toast("La fecha de nacimiento no puede ser futura"); return; }
     const e = id ? await DB.getEjemplar(id) : {};
     e.placa = placa;
     e.nombre = document.getElementById("f-nombre").value.trim();
-    e.fechaNacimiento = document.getElementById("f-fecha").value || null;
+    e.fechaNacimiento = fechaNac;
     e.sexo = document.getElementById("f-sexo").value || null;
     e.reproductor = e.sexo ? document.getElementById("f-reproductor").checked : false;
     e.color = document.getElementById("f-color").value.trim();
@@ -821,7 +851,7 @@ const App = (() => {
           </div>
           <div class="field">
             <label>Fecha de nacimiento de la camada *</label>
-            <input type="date" id="c-fecha">
+            <input type="date" id="c-fecha" max="${hoyLocal()}">
           </div>
         </div>
         <div class="card">
@@ -868,6 +898,7 @@ const App = (() => {
     const madreId = document.getElementById("c-madre").value;
     const fecha = document.getElementById("c-fecha").value;
     if (!padreId || !madreId || !fecha) { toast("Completa padre, madre y fecha"); return; }
+    if (fecha > hoyLocal()) { toast("La fecha de nacimiento no puede ser futura"); return; }
     sincronizarFilasDesdeDOM();
     const filasValidas = camadaFilas.filter((f) => f.placa);
     if (filasValidas.length === 0) { toast("Agrega al menos una cría con placa"); return; }
@@ -1169,12 +1200,11 @@ const App = (() => {
       if (!b.fecha) return -1;
       return new Date(a.fecha) - new Date(b.fecha);
     });
-    const hoy = new Date();
     const itemHtml = (p) => {
       let urgente = false;
       let subtext = p.fecha ? formatFechaCorta(p.fecha) : "Sin fecha";
       if (p.fecha && !p.completado) {
-        const diff = Math.round((new Date(p.fecha) - hoy) / 86400000);
+        const diff = diasHasta(p.fecha);
         if (diff <= 7) { urgente = true; subtext = diff < 0 ? "Venció" : diff === 0 ? "Es hoy" : `En ${diff} día(s)`; }
       }
       const icon = p.tipo === "vacuna" ? "&#9679;" : p.tipo === "foto" ? "&#9678;" : "&#9670;";
