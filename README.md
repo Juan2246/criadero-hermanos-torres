@@ -1,8 +1,16 @@
+<img src="docs/brand.svg" width="76" height="76" alt="Símbolo de Hermanos Torres">
+
 # Criaderos Hermanos Torres
 
-Aplicación web instalable (PWA) para llevar el **registro genealógico de un criadero familiar de gallos y gallinas** desde el celular: quién es hijo de quién, qué crías salieron de cada camada, cómo fue creciendo cada ejemplar en fotos y qué vacunas o tareas quedan pendientes.
+Hice esta aplicación para mi papá. En el criadero, el cuaderno guardaba la historia de cada ejemplar: sus padres, las camadas, las fotos de crecimiento y las vacunas pendientes. Quería que pudiera consultar todo eso desde su celular, incluso a pie de corral y sin internet.
 
-Reemplaza al cuaderno de papel. Funciona sin conexión, no necesita cuenta ni servidor, y **todos los datos se quedan en el celular** de quien la usa.
+El cambio más importante fue modelar la genealogía con relaciones entre registros. A partir de esos vínculos, la aplicación construye el árbol familiar y permite seguir la descendencia.
+
+**HTML · CSS · JavaScript · IndexedDB · Service Worker**
+
+No hay cuentas ni servidor de datos. La información se queda en el dispositivo; por eso el respaldo y su restauración forman parte del recorrido principal.
+
+[Ver el caso en mi portafolio](https://portafolio-juan-torres-puce.vercel.app/proyectos/criadero-hermanos-torres)
 
 <p>
   <img src="docs/capturas/01-inicio-cuadricula.png" alt="Inicio con los ejemplares en cuadrícula" width="200">
